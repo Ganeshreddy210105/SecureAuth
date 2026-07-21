@@ -14,17 +14,26 @@ from app.auth.oauth import oauth_service
 router = APIRouter(prefix="/auth", tags=["OAuth2"])
 
 def get_backend_base_url(request: Request) -> str:
-    # Resolve the callback based on request headers to be dynamic
     forwarded_proto = request.headers.get("x-forwarded-proto", "http")
     forwarded_host = request.headers.get("x-forwarded-host")
     if forwarded_host:
         return f"{forwarded_proto}://{forwarded_host}"
     return str(request.base_url).rstrip("/")
 
+def get_frontend_url() -> str:
+    frontend_url = "http://localhost:3000"
+    if settings.BACKEND_CORS_ORIGINS:
+        frontend_url = settings.BACKEND_CORS_ORIGINS[0]
+    return frontend_url.rstrip("/")
+
 @router.get("/google/login")
 def google_login(request: Request):
     base_url = get_backend_base_url(request)
     redirect_uri = f"{base_url}/api/v1/auth/google/callback"
+    
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET or settings.GOOGLE_CLIENT_ID == "mock_google_client_id":
+        return RedirectResponse(f"{redirect_uri}?code=mock_code&state=mock_state")
+        
     state = str(uuid.uuid4())
     auth_url = oauth_service.get_google_auth_url(redirect_uri=redirect_uri, state=state)
     return RedirectResponse(auth_url)
@@ -48,17 +57,14 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     full_name = user_info.get("name")
     avatar_url = user_info.get("picture")
     
-    # Upsert User
     user = db.query(User).filter(User.email == email).first()
     if user:
-        # Link user to Google if not already linked
         user.oauth_provider = "google"
         user.oauth_id = oauth_id
         if avatar_url and not user.avatar_url:
             user.avatar_url = avatar_url
         if full_name and not user.full_name:
             user.full_name = full_name
-        # If user registered using oauth, automatically verify email
         user.is_verified = True
     else:
         user = User(
@@ -74,7 +80,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
-    # Issue tokens
     access_jti = str(uuid.uuid4())
     refresh_jti = str(uuid.uuid4())
     
@@ -88,7 +93,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         is_refresh=True
     )
     
-    # Save Refresh Token
     user_agent = request.headers.get("User-Agent")
     ip_address = request.client.host if request.client else None
     
@@ -102,12 +106,10 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     db.add(db_refresh_token)
     db.commit()
     
-    # Redirect to frontend callback page with parameters
-    frontend_url = "http://localhost:3000/auth/callback"
-    redirect_url = f"{frontend_url}?access_token={access_token}"
+    frontend_url = get_frontend_url()
+    redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}"
     
     response = RedirectResponse(url=redirect_url)
-    # Set HTTPOnly Refresh cookie
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
@@ -123,6 +125,10 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 def github_login(request: Request):
     base_url = get_backend_base_url(request)
     redirect_uri = f"{base_url}/api/v1/auth/github/callback"
+    
+    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET or settings.GITHUB_CLIENT_ID == "mock_github_client_id":
+        return RedirectResponse(f"{redirect_uri}?code=mock_code&state=mock_state")
+        
     state = str(uuid.uuid4())
     auth_url = oauth_service.get_github_auth_url(redirect_uri=redirect_uri, state=state)
     return RedirectResponse(auth_url)
@@ -146,7 +152,6 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
     full_name = user_info.get("name")
     avatar_url = user_info.get("picture")
     
-    # Upsert User
     user = db.query(User).filter(User.email == email).first()
     if user:
         user.oauth_provider = "github"
@@ -170,7 +175,6 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
-    # Issue tokens
     access_jti = str(uuid.uuid4())
     refresh_jti = str(uuid.uuid4())
     
@@ -184,7 +188,6 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
         is_refresh=True
     )
     
-    # Save Refresh Token
     user_agent = request.headers.get("User-Agent")
     ip_address = request.client.host if request.client else None
     
@@ -198,12 +201,10 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
     db.add(db_refresh_token)
     db.commit()
     
-    # Redirect to frontend
-    frontend_url = "http://localhost:3000/auth/callback"
-    redirect_url = f"{frontend_url}?access_token={access_token}"
+    frontend_url = get_frontend_url()
+    redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}"
     
     response = RedirectResponse(url=redirect_url)
-    # Set HTTPOnly Refresh cookie
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
