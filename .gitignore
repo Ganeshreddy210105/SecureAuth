@@ -1,0 +1,46 @@
+# Node.js build and dependencies
+node_modules/
+.next/
+out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Python caches and environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases and journals
+*.db
+*.db-journal
+*.sqlite
+dev.db
+test.db
+
+# Environments and sensitive keys
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backend
+.env.frontend
+.env.*.local
+
+# Operating System files
+.DS_Store
+Thumbs.db
