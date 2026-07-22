@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 
 # Check if email is configured, if not, print to console
 def is_email_configured() -> bool:
-    return bool(settings.MAIL_USERNAME and settings.MAIL_SERVER)
+    if settings.USE_CREDENTIALS:
+        return bool(settings.MAIL_USERNAME and settings.MAIL_SERVER)
+    return bool(settings.MAIL_SERVER)
 
 conf = ConnectionConfig(
     MAIL_USERNAME=settings.MAIL_USERNAME,
@@ -96,11 +98,11 @@ class EmailService:
         )
         
         # Log email content in console for development convenience
-        logger.info(f"\n========================================\n"
-                    f"EMAIL TO: {email}\n"
-                    f"SUBJECT: {subject}\n"
-                    f"BODY (TRUNCATED): {body[:300]}...\n"
-                    f"========================================")
+        print(f"\n========================================\n"
+              f"EMAIL TO: {email}\n"
+              f"SUBJECT: {subject}\n"
+              f"BODY (TRUNCATED): {body[:300]}...\n"
+              f"========================================", flush=True)
         
         if is_email_configured():
             try:
@@ -110,6 +112,6 @@ class EmailService:
             except Exception as e:
                 logger.error(f"Failed to send email via SMTP: {e}")
         else:
-            logger.info("SMTP email server not configured or details missing. Email printed to console log.")
+            print("SMTP email server not configured or details missing. Email printed to console log.", flush=True)
 
 email_service = EmailService()
