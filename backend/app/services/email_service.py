@@ -1,5 +1,6 @@
 import logging
 import secrets
+import httpx
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import EmailStr
 from app.core.config import settings
@@ -90,28 +91,59 @@ class EmailService:
         await self._send_email(email, subject, body)
 
     async def _send_email(self, email: str, subject: str, body: str):
-        message = MessageSchema(
-            subject=subject,
-            recipients=[email],
-            body=body,
-            subtype=MessageType.html
-        )
-        
-        # Log email content in console for development convenience
+        # Print email content in console for development convenience
         print(f"\n========================================\n"
               f"EMAIL TO: {email}\n"
               f"SUBJECT: {subject}\n"
               f"BODY (TRUNCATED): {body[:300]}...\n"
               f"========================================", flush=True)
         
+        # Try Resend API if configured
+        if settings.RESEND_API_KEY:
+            try:
+                from_email = settings.MAIL_FROM
+                # Resend free tier/onboarding requires sending from onboarding@resend.dev
+                if "onboarding@resend.dev" in from_email or "@secureauth.dev" in from_email:
+                    from_email = "onboarding@resend.dev"
+                
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        "https://api.resend.com/emails",
+                        headers={
+                            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "from": f"{settings.MAIL_FROM_NAME} <{from_email}>",
+                            "to": [email],
+                            "subject": subject,
+                            "html": body,
+                        },
+                        timeout=10.0
+                    )
+                    if response.status_code in [200, 201]:
+                        logger.info(f"Email successfully sent to {email} via Resend API.")
+                        return
+                    else:
+                        logger.error(f"Failed to send email via Resend API: {response.status_code} - {response.text}")
+            except Exception as e:
+                logger.error(f"Error sending email via Resend API: {e}")
+                
+        # Fallback to standard SMTP if configured
         if is_email_configured():
             try:
+                message = MessageSchema(
+                    subject=subject,
+                    recipients=[email],
+                    body=body,
+                    subtype=MessageType.html
+                )
                 fm = FastMail(conf)
                 await fm.send_message(message)
-                logger.info(f"Email successfully sent to {email}")
+                logger.info(f"Email successfully sent to {email} via SMTP.")
             except Exception as e:
                 logger.error(f"Failed to send email via SMTP: {e}")
         else:
-            print("SMTP email server not configured or details missing. Email printed to console log.", flush=True)
+            print("SMTP/Resend email service not configured or details missing. Email printed to console log.", flush=True)
 
 email_service = EmailService()

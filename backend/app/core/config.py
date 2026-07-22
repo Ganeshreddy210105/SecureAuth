@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     MAIL_SSL_TLS: bool = False
     USE_CREDENTIALS: bool = False
     
+    # Resend API Key
+    RESEND_API_KEY: str = ""
+    
     # OAuth Settings
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
