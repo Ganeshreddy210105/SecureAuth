@@ -1,5 +1,5 @@
 import os
-from typing import List, Union
+from typing import List, Union, Any
 from pydantic import AnyHttpUrl, BeforeValidator, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Annotated
@@ -8,6 +8,12 @@ def parse_cors(v: Union[str, List[str]]) -> List[str]:
     if isinstance(v, str) and not v.startswith("["):
         return [i.strip() for i in v.split(",")]
     elif isinstance(v, (list, str)):
+        import json
+        if isinstance(v, str) and v.startswith("["):
+            try:
+                return json.loads(v)
+            except Exception:
+                pass
         return v
     raise ValueError(v)
 
@@ -32,7 +38,7 @@ class Settings(BaseSettings):
     
     # CORS Origins
     BACKEND_CORS_ORIGINS: Annotated[
-        List[str], BeforeValidator(parse_cors)
+        Any, BeforeValidator(parse_cors)
     ] = ["http://localhost:3000"]
     
     # Email Settings (FastAPI-Mail)
